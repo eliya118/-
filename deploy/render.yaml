@@ -1,0 +1,88 @@
+# Render, Frankfurt. Each process is the Docker image from this repo.
+# Run deploy/postgres/init.sh once against the managed instance so the three
+# databases and roles exist. Render Key Value must accept XADD, XREADGROUP,
+# XAUTOCLAIM, ZADD, and ZRANGEBYSCORE before reminders depend on it.
+# That command check, a real Resend delivery, and a live Hebrew preview are
+# still manual. This file does not perform them.
+
+services:
+  - type: web
+    name: web
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: apps/web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: CALENDAR_UPSTREAM
+        value: http://calendar:8000
+
+  - type: pserv
+    name: calendar
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: apps/calendar/Dockerfile
+    dockerContext: .
+    envVars:
+      - fromGroup: kids-calendar
+
+  - type: pserv
+    name: intake
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: apps/intake/Dockerfile
+    dockerContext: .
+    envVars:
+      - fromGroup: kids-calendar
+
+  - type: pserv
+    name: ideas
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: apps/ideas/Dockerfile
+    dockerContext: .
+    envVars:
+      - fromGroup: kids-calendar
+
+  - type: worker
+    name: notifier
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerfilePath: apps/notifier/Dockerfile
+    dockerContext: .
+    envVars:
+      - fromGroup: kids-calendar
+
+  - type: keyvalue
+    name: redis
+    region: frankfurt
+    plan: starter
+    ipAllowList: []
+
+databases:
+  - name: kids-calendar-db
+    region: frankfurt
+    plan: basic-1gb
+    postgresMajorVersion: "17"
+    ipAllowList: []
+
+envVarGroups:
+  - name: kids-calendar
+    envVars:
+      - key: APP_TIMEZONE
+        value: Asia/Jerusalem
+      - key: LLM_PROVIDER
+        value: openai
+      - key: LLM_MODEL
+        value: gpt-4.1-mini
+      - key: EMAIL_MODE
+        value: resend
+      - key: NOTIFIER_CHANNELS
+        value: email
+      - key: LOG_LEVEL
+        value: INFO

@@ -1,0 +1,234 @@
+name: kids-calendar
+
+x-app-env: &app-env
+  REDIS_URL: redis://redis:6379
+  INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-local-internal-token-change-me}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    image: postgres:17.7@sha256:2006493727bd5277eece187319af1ef82b4cf82cf4fc1ed00da0775b646ac2a4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      CALENDAR_DB_PASSWORD: calendar
+      IDEAS_DB_PASSWORD: ideas
+      NOTIFIER_DB_PASSWORD: notifier
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4.7@sha256:976ab0f0939b78c06d802bcd3bea44c5142ea9a756a57b861e08819817f768c8
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    image: axllent/mailpit:v1.27.1@sha256:986b14ff7b253e62883ea19fd3112806f116e5e2f221e03f12fb81c7312ff532
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  calendar:
+    build:
+      context: .
+      dockerfile: apps/calendar/Dockerfile
+    environment:
+      <<: *app-env
+      CALENDAR_DATABASE_URL: postgresql+asyncpg://calendar_app:calendar@postgres:5432/calendar
+      PARENT_EMAIL: ${PARENT_EMAIL:-parent@example.com}
+      PARENT_PASSWORD: ${PARENT_PASSWORD:-local-parent-password}
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:5173}
+      APP_TIMEZONE: Asia/Jerusalem
+      INTAKE_URL: http://intake:8000
+      IDEAS_URL: http://ideas:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  intake:
+    build:
+      context: .
+      dockerfile: apps/intake/Dockerfile
+    environment:
+      <<: *app-env
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4.1-mini}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      APP_TIMEZONE: Asia/Jerusalem
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  ideas:
+    build:
+      context: .
+      dockerfile: apps/ideas/Dockerfile
+    environment:
+      <<: *app-env
+      IDEAS_DATABASE_URL: postgresql+asyncpg://ideas_app:ideas@postgres:5432/ideas
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4.1-mini}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  notifier:
+    build:
+      context: .
+      dockerfile: apps/notifier/Dockerfile
+    environment:
+      <<: *app-env
+      NOTIFIER_DATABASE_URL: postgresql+asyncpg://notifier_app:notifier@postgres:5432/notifier
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-calendar@localhost}
+      SMTP_URL: smtp://mailpit:1025
+      EMAIL_MODE: ${EMAIL_MODE:-mailpit}
+      NOTIFIER_CHANNELS: email
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "5173:8080"
+    depends_on:
+      calendar:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  calendar-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/calendar/Dockerfile
+      target: test
+    environment:
+      <<: *app-env
+      CALENDAR_DATABASE_URL: postgresql+asyncpg://calendar_app:calendar@postgres:5432/calendar
+      PARENT_EMAIL: parent@example.com
+      PARENT_PASSWORD: local-parent-password
+      WEB_ORIGIN: http://localhost:5173
+      APP_TIMEZONE: Asia/Jerusalem
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  intake-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/intake/Dockerfile
+      target: test
+    environment:
+      <<: *app-env
+      LLM_PROVIDER: fake
+      LLM_API_KEY: ""
+      LLM_MODEL: gpt-4.1-mini
+      APP_TIMEZONE: Asia/Jerusalem
+
+  ideas-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/ideas/Dockerfile
+      target: test
+    environment:
+      <<: *app-env
+      IDEAS_DATABASE_URL: postgresql+asyncpg://ideas_app:ideas@postgres:5432/ideas
+      LLM_PROVIDER: fake
+      LLM_API_KEY: ""
+      LLM_MODEL: gpt-4.1-mini
+
+  notifier-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/notifier/Dockerfile
+      target: test
+    environment:
+      <<: *app-env
+      NOTIFIER_DATABASE_URL: postgresql+asyncpg://notifier_app:notifier@postgres:5432/notifier
+      EMAIL_MODE: mailpit
+      SMTP_URL: smtp://mailpit:1025
+      EMAIL_FROM: calendar@localhost
+      NOTIFIER_CHANNELS: email
+
+  web-test:
+    profiles: ["test"]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: test
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,31 @@
+[project]
+name = "ideas"
+version = "0.1.0"
+description = "Activity and meal suggestions"
+requires-python = ">=3.13"
+dependencies = [
+  "alembic>=1.14",
+  "asyncpg>=0.30",
+  "contracts",
+  "fastapi>=0.115",
+  "httpx>=0.28",
+  "llm",
+  "pydantic-settings>=2.7",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "tzdata>=2025.2",
+  "uvicorn>=0.34",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+ideas = ["catalog/*.json"]
+
+[tool.uv.sources]
+contracts = { workspace = true }
+llm = { workspace = true }
