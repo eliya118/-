@@ -1,0 +1,12 @@
+{
+  "v": 1,
+  "type": "calendar.event_upserted",
+  "event_id": "00000000-0000-4000-8000-000000000010",
+  "family_id": "00000000-0000-4000-8000-000000000020",
+  "generation": 1,
+  "title": "dentist",
+  "starts_at": "2026-01-07T13:00:00+00:00",
+  "remind_at": "2026-01-07T12:00:00+00:00",
+  "locale": "he",
+  "request_id": "req-1"
+}
