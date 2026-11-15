@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     intake_url: str = Field(default="http://intake:8000", alias="INTAKE_URL")
     ideas_url: str = Field(default="http://ideas:8000", alias="IDEAS_URL")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+    google_client_secret: str = Field(default="", alias="GOOGLE_CLIENT_SECRET")
+    google_redirect_uri: str = Field(
+        default="http://localhost:5173/api/google/callback",
+        alias="GOOGLE_REDIRECT_URI",
+    )
 
     @property
     def cookie_secure(self) -> bool:

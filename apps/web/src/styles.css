@@ -76,6 +76,19 @@ input, select {
   padding: 0.45rem 0.6rem;
 }
 
+.event-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.event-actions button,
+.event-actions a {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
+}
+
 .week {
   display: grid;
   grid-template-columns: repeat(7, minmax(8.5rem, 1fr));

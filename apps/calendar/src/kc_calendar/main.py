@@ -18,6 +18,7 @@ from sqlalchemy import text
 from kc_calendar.api import ApiError, router
 from kc_calendar.bootstrap import bootstrap
 from kc_calendar.db.session import make_engine, make_session_factory
+from kc_calendar.google_api import router as google_router
 from kc_calendar.logging import configure_logging, request_id_var
 from kc_calendar.relay import purge_loop, relay_loop
 from kc_calendar.settings import Settings
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     app.state.redis = redis_client
     app.include_router(router)
+    app.include_router(google_router)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.web_origin],

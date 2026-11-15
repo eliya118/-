@@ -8,11 +8,15 @@ export function WeekGrid({
   events,
   locale,
   childNames,
+  onCancel,
+  googleHref,
 }: {
   days: Day[];
   events: CalEvent[];
   locale: Locale;
   childNames: Record<string, string>;
+  onCancel?: (eventId: string) => void;
+  googleHref?: (event: CalEvent) => string | null;
 }) {
   const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
   return (
@@ -49,16 +53,31 @@ export function WeekGrid({
             ) : null}
             <ul>
               {dayEvents.length === 0 ? <li className="empty">{t("noEvents")}</li> : null}
-              {dayEvents.map((event) => (
-                <li key={event.id}>
-                  <strong>{event.title}</strong>
-                  <span>
-                    {event.all_day ? t("allDay") : clock(event.starts_at)}
-                    {" · "}
-                    {event.child_ids.map((id) => childNames[id] ?? id).join(", ")}
-                  </span>
-                </li>
-              ))}
+              {dayEvents.map((event) => {
+                const google = googleHref?.(event);
+                return (
+                  <li key={event.id}>
+                    <strong>{event.title}</strong>
+                    <span>
+                      {event.all_day ? t("allDay") : clock(event.starts_at)}
+                      {" · "}
+                      {event.child_ids.map((id) => childNames[id] ?? id).join(", ")}
+                    </span>
+                    <span className="event-actions">
+                      {google ? (
+                        <a href={google} target="_blank" rel="noreferrer">
+                          {t("googleAdd")}
+                        </a>
+                      ) : null}
+                      {onCancel ? (
+                        <button className="quiet" type="button" onClick={() => onCancel(event.id)}>
+                          {t("cancel")}
+                        </button>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         );

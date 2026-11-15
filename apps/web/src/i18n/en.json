@@ -39,5 +39,13 @@
   "prevWeek": "Previous week",
   "nextWeek": "Next week",
   "loading": "Loading…",
-  "parseDown": "That sentence could not be read. You can still add the event by hand."
+  "parseDown": "That sentence could not be read. You can still add the event by hand.",
+  "cancel": "Cancel",
+  "cancelConfirm": "Cancel this event?",
+  "googleConnect": "Connect Google Calendar",
+  "googleConnected": "Google Calendar is connected. New events, edits, and cancellations are copied there.",
+  "googleDisconnect": "Disconnect Google Calendar",
+  "googleNotConfigured": "Google sync needs GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then a restart. Until then, use Add to Google on an event.",
+  "googleAdd": "Add to Google",
+  "googleError": "Google Calendar did not connect. Try again."
 }
