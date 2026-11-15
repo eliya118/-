@@ -1,0 +1,27 @@
+[project]
+name = "intake"
+version = "0.1.0"
+description = "Natural-language event parsing"
+requires-python = ">=3.13"
+dependencies = [
+  "contracts",
+  "fastapi>=0.115",
+  "hebrewcal",
+  "httpx>=0.28",
+  "llm",
+  "pydantic-settings>=2.7",
+  "tzdata>=2025.2",
+  "uvicorn>=0.34",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv.sources]
+contracts = { workspace = true }
+hebrewcal = { workspace = true }
+llm = { workspace = true }
