@@ -29,6 +29,7 @@ from kc_calendar.domain.names import tokenize
 from kc_calendar.domain.remind import compute_remind_at
 from kc_calendar.domain.timeutil import civil_date, jerusalem_today, now_jerusalem
 from kc_calendar.domain.week import NotSundayError, require_sunday
+from kc_calendar.google_sync import GoogleSyncError, delete_google_event, upsert_google_event
 from kc_calendar.ids import new_id
 from kc_calendar.logging import request_id_var
 from kc_calendar.security import hash_token, new_session_token, verify_password
@@ -394,6 +395,40 @@ async def _insert_event(
     return event
 
 
+async def _mirror_google(request: Request, db: AsyncSession, response: JSONResponse) -> None:
+    if response.status_code not in {200, 201}:
+        return
+    try:
+        body = json.loads(bytes(response.body))
+    except json.JSONDecodeError:
+        return
+    raw_id = body.get("id") if isinstance(body, dict) else None
+    if not isinstance(raw_id, str):
+        return
+    event = await db.get(Event, UUID(raw_id))
+    if event is None or event.deleted_at is not None:
+        return
+    family = await db.get(Family, event.family_id)
+    if family is None or not family.google_refresh_token:
+        return
+    try:
+        google_id = await upsert_google_event(
+            request.app.state.settings,
+            family.google_refresh_token,
+            event.google_event_id,
+            event.title,
+            event.starts_at,
+            event.ends_at,
+            event.all_day,
+        )
+    except GoogleSyncError:
+        log.warning("google sync failed", extra={"event_id": str(event.id)})
+        return
+    if google_id != event.google_event_id:
+        event.google_event_id = google_id
+        await db.commit()
+
+
 @router.post("/api/events", status_code=201)
 async def create_event(
     body: EventIn,
@@ -430,6 +465,7 @@ async def create_event(
 
     response = await _idempotent(db, idempotency_key, raw, produce)
     await db.commit()
+    await _mirror_google(request, db, response)
     log.info("event created", extra={"family_id": str(family_id)})
     return response
 
@@ -489,6 +525,7 @@ async def patch_event(
 
     response = await _idempotent(db, idempotency_key, raw, produce)
     await db.commit()
+    await _mirror_google(request, db, response)
     log.info("event updated", extra={"event_id": str(event_id), "family_id": str(family_id)})
     return response
 
@@ -511,7 +548,15 @@ async def delete_event(event_id: UUID, request: Request) -> Response:
         request_id=request_id_var.get() or None,
     ).model_dump(mode="json")
     db.add(_outbox("calendar.event_cancelled", payload))
+    google_event_id = event.google_event_id
+    family = await db.get(Family, family_id)
+    refresh_token = family.google_refresh_token if family else None
     await db.commit()
+    if refresh_token and google_event_id:
+        try:
+            await delete_google_event(request.app.state.settings, refresh_token, google_event_id)
+        except GoogleSyncError:
+            log.warning("google delete failed", extra={"event_id": str(event_id)})
     log.info("event cancelled", extra={"event_id": str(event_id), "family_id": str(family_id)})
     return Response(status_code=204)
 
@@ -592,6 +637,7 @@ async def confirm(
 
     response = await _idempotent(db, idempotency_key, raw, produce)
     await db.commit()
+    await _mirror_google(request, db, response)
     return response
 
 

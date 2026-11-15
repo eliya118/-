@@ -111,6 +111,23 @@ Done means: the file describes the five services, Redis, and Postgres. Applying 
 
 What landed: the blueprint is committed. `CALENDAR_UPSTREAM` is set there, but `apps/web/nginx.conf` still proxies to `http://calendar:8000`. That is correct for Compose. On Render it only works if the private service is reachable as `calendar`.
 
+## 8. Cancel an event, and send it to Google Calendar
+
+The week shows events but there is no way to drop one. A parent also asked for those events to show up on their Google Calendar, including when one is cancelled.
+
+Folders and files:
+
+- `apps/web` week grid — a cancel control on each event
+- `apps/calendar` — Google OAuth connect, and a push when an event is created, edited, or cancelled
+- Alembic revision that stores the Google refresh token and the Google event id
+- `.env.example` — `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+
+Done means: cancel removes the event from the week and cancels the reminder. If Google is connected, the same change is created, updated, or deleted on the parent's primary Google calendar. If the Google client id is empty, cancel still works, and each event has an "add to Google" link that opens Google's own form.
+
+What landed: each event has ביטול. It calls `DELETE /api/events/{id}`, which was already a soft delete and a `calendar.event_cancelled` message. The week grid drops the event. A Google block on the week page reads `GET /api/google/status`. With the client id empty it explains that, and each event links to Google's template form. When `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set, "Connect Google Calendar" starts OAuth and later creates, updates, and deletes the matching event on the primary calendar. The refresh token is stored on the family. A failed Google call does not undo the local save or the local cancel.
+
+Checked: calendar unit tests, 18 passed, including the OAuth state signature and the Google event body. `DELETE` of "park" returned 204, the week no longer listed it, and the notifier logged `event cancelled` for that id. `GET /api/google/status` returned `configured: false`. In the browser, ביטול asked "לבטל את האירוע?", one dentist event disappeared, and the Google panel named the two env vars. A live Google account was not connected, because no client id is set.
+
 ## Leftovers
 
 - Playwright smoke (log in, open the week, see a Hebrew date) is not in CI. The same path was checked by hand in a browser against this Compose stack.
@@ -118,3 +135,4 @@ What landed: the blueprint is committed. `CALENDAR_UPSTREAM` is set there, but `
 - No committed OpenAPI diff.
 - Managed Redis command check, one real Resend email, and one live Hebrew preview through OpenAI were not run.
 - `nginx.conf` does not read `CALENDAR_UPSTREAM`.
+- Google Calendar push is implemented but was not exercised against a real Google account. It needs a client id and secret. Until those are set, cancel is local and "Add to Google" opens Google's form for that one event.

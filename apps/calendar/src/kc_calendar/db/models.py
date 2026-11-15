@@ -20,6 +20,7 @@ class Family(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     timezone: Mapped[str] = mapped_column(Text, nullable=False)
     locale: Mapped[str] = mapped_column(String(2), nullable=False, default="he")
+    google_refresh_token: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     children: Mapped[list["Child"]] = relationship(back_populates="family")
     parent: Mapped["ParentAccount | None"] = relationship(back_populates="family")
@@ -70,6 +71,7 @@ class Event(Base):
     generation: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     locale: Mapped[str] = mapped_column(String(2), nullable=False)
     deleted_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    google_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     children: Mapped[list[Child]] = relationship(secondary="event_child")
 
